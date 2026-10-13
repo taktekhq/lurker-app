@@ -91,15 +91,21 @@ func (d *Drafter) handle(share *Share) error {
 
 	prompt := BuildPrompt(d.Config, rules, string(voice), share.Note, photoPaths)
 
+	// The prompt must come right after the configured claude command and
+	// before any flag that takes a variable number of values (--add-dir,
+	// --allowedTools): the CLI's argument parser otherwise swallows the
+	// prompt text as one more value for whichever such flag precedes it,
+	// and then claude refuses with "Input must be provided either through
+	// stdin or as a prompt argument".
 	args := make([]string, 0, len(d.Config.Claude)+9)
 	args = append(args, d.Config.Claude...)
+	args = append(args, prompt)
 	args = append(args,
 		"--strict-mcp-config",
 		"--mcp-config", `{"mcpServers":{}}`,
 		"--allowedTools", "Read",
 		"--output-format", "json",
 		"--add-dir", tempDir,
-		prompt,
 	)
 
 	rawOut, err := d.RunClaude(args)
