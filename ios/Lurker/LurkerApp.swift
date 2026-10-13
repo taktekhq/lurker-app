@@ -11,7 +11,7 @@ struct LurkerApp: App {
 
     var body: some Scene {
         WindowGroup {
-            SharesListView()
+            QueueTabView()
                 .environment(appState)
                 .onOpenURL { url in
                     guard let link = SetupLink.parse(url) else { return }
