@@ -50,6 +50,10 @@ Engine token (`ENGINE_TOKEN`, new secret; the drafter keeps `DRAFTER_TOKEN`):
 - `GET /v1/items?status=open` and `?day=` for reconciliation.
 - When the drafter posts drafts for a share, the worker also upserts one `reddit/post` item per draft (`id = "photo-<share>-<n>"`, source photo, photos = share photos).
 
+Implementation notes (worker has no timezone config of its own):
+- The worker reports `"day"` in `GET /v1/queues` as the latest `day` value already stored across items (the engine stamps it on every item it writes, in its own timezone). `done_today`/`skipped_today` count items whose own `day` matches that value. If there are no items yet, it falls back to the current UTC date.
+- `GET /v1/items` is one route, open to both the app token and the engine token; the query parameters (`status`, `day`, `limit`) are the same regardless of which token calls it.
+
 Growth JSON (engine-owned, the app renders what is there):
 
 ```json

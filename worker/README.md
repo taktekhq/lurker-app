@@ -1,9 +1,11 @@
 # worker
 
-Cloudflare Worker that stores shared photos (R2) and share/draft rows (D1),
-and is the API both the iOS app and the drafter talk to. Routes are
-documented in [SPEC.md](../SPEC.md) at the repo root. Plain JS, no build
-step, no npm dependencies.
+Cloudflare Worker that stores shared photos (R2), share/draft rows, and
+post/comment queue items and events (D1). It is the API the iOS app, the
+drafter and the engine all talk to. Routes are documented in
+[SPEC.md](../SPEC.md) (photo shares) and [SPEC-v2.md](../SPEC-v2.md)
+(queues, events, growth) at the repo root. Plain JS, no build step, no npm
+dependencies.
 
 ## Run the tests
 
@@ -20,6 +22,11 @@ so nothing talks to Cloudflare.
 You need a Cloudflare account and an API token (Workers Scripts Edit, D1
 Edit, and read access to the R2 bucket's binding). Wrangler login is not
 required; everything below goes through the REST API with curl.
+
+Three bearer tokens guard the routes: `APP_TOKEN` (the iOS app),
+`DRAFTER_TOKEN` (the photo-share drafter, SPEC.md), and `ENGINE_TOKEN` (the
+queue-filling engine, SPEC-v2.md). Generate and set all three the same way;
+keep each one out of logs and source control.
 
 ```sh
 export CF_API_TOKEN=...      # your token
@@ -49,6 +56,8 @@ R2_BUCKET=lurker-inbox       # an R2 bucket you already created
    ```
 
    Or run each statement in `schema.sql` the same way; it is idempotent.
+   `schema.sql` also has the `items`, `events` and `kv` tables SPEC-v2.md
+   adds (post/comment queues); apply those the same way.
 
 3. Deploy the worker:
 
@@ -62,20 +71,20 @@ R2_BUCKET=lurker-inbox       # an R2 bucket you already created
    ```sh
    APP_TOKEN=$(openssl rand -hex 32)
    DRAFTER_TOKEN=$(openssl rand -hex 32)
+   ENGINE_TOKEN=$(openssl rand -hex 32)
 
-   curl -sS -X PUT -H "Authorization: Bearer $CF_API_TOKEN" \
-     -H "content-type: application/json" \
-     "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts/$WORKER_NAME/secrets" \
-     -d '{"name":"APP_TOKEN","text":"'"$APP_TOKEN"'","type":"secret_text"}'
-
-   curl -sS -X PUT -H "Authorization: Bearer $CF_API_TOKEN" \
-     -H "content-type: application/json" \
-     "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts/$WORKER_NAME/secrets" \
-     -d '{"name":"DRAFTER_TOKEN","text":"'"$DRAFTER_TOKEN"'","type":"secret_text"}'
+   for name in APP_TOKEN DRAFTER_TOKEN ENGINE_TOKEN; do
+     value=$(eval echo \$$name)
+     curl -sS -X PUT -H "Authorization: Bearer $CF_API_TOKEN" \
+       -H "content-type: application/json" \
+       "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts/$WORKER_NAME/secrets" \
+       -d '{"name":"'"$name"'","text":"'"$value"'","type":"secret_text"}'
+   done
    ```
 
-   Store `APP_TOKEN` in the iOS app's Settings screen, and `DRAFTER_TOKEN` in
-   the drafter's environment. Never print or log either one.
+   Store `APP_TOKEN` in the iOS app's Settings screen, `DRAFTER_TOKEN` in the
+   drafter's environment, and `ENGINE_TOKEN` in the engine's environment.
+   Never print or log any of them.
 
 5. Enable the workers.dev subdomain so the worker is reachable without a
    custom domain:

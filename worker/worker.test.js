@@ -5,6 +5,7 @@ import { makeEnv } from "./test-helpers.js";
 
 const APP = "test-app-token";
 const DRAFTER = "test-drafter-token";
+const ENGINE = "test-engine-token";
 
 function req(method, path, { token, body, headers } = {}) {
   const h = new Headers(headers || {});
@@ -350,4 +351,272 @@ test("unknown route is 404", async () => {
   const env = makeEnv();
   const res = await worker.fetch(req("GET", "/v1/nope", { token: APP }), env);
   assert.equal(res.status, 404);
+});
+
+// ---- SPEC-v2.md: queues, items, events, growth ----
+
+function putItem(env, item) {
+  return worker.fetch(req("PUT", "/v1/items", { token: ENGINE, body: { items: [item] } }), env);
+}
+
+function baseItem(overrides = {}) {
+  return {
+    id: "a1",
+    platform: "reddit",
+    queue: "post",
+    status: "open",
+    title: "a title",
+    body: "",
+    url: null,
+    target: "Ducati",
+    why: "his bike",
+    source: "kbase",
+    photos: [],
+    day: "2026-10-13",
+    ...overrides,
+  };
+}
+
+test("queues starts empty for every platform and queue", async () => {
+  const env = makeEnv();
+  const res = await worker.fetch(req("GET", "/v1/queues", { token: APP }), env);
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.ok(body.day);
+  for (const platform of ["reddit", "hn"]) {
+    for (const queue of ["post", "comment"]) {
+      const q = body.platforms[platform][queue];
+      assert.deepEqual(q.open, []);
+      assert.equal(q.done_today, 0);
+      assert.equal(q.skipped_today, 0);
+      assert.equal(q.target, 5);
+    }
+  }
+});
+
+test("engine upserts an item, app sees it in queues", async () => {
+  const env = makeEnv();
+  const put = await putItem(env, baseItem());
+  assert.equal(put.status, 200);
+
+  const res = await worker.fetch(req("GET", "/v1/queues", { token: APP }), env);
+  const body = await res.json();
+  const open = body.platforms.reddit.post.open;
+  assert.equal(open.length, 1);
+  assert.equal(open[0].id, "a1");
+  assert.equal(open[0].title, "a title");
+  assert.equal(body.day, "2026-10-13");
+});
+
+test("app token cannot PUT items, engine token cannot read queues", async () => {
+  const env = makeEnv();
+  const putByApp = await worker.fetch(
+    req("PUT", "/v1/items", { token: APP, body: { items: [baseItem()] } }),
+    env
+  );
+  assert.equal(putByApp.status, 401);
+
+  const queuesByEngine = await worker.fetch(req("GET", "/v1/queues", { token: ENGINE }), env);
+  assert.equal(queuesByEngine.status, 401);
+});
+
+test("PUT items validates platform and queue", async () => {
+  const env = makeEnv();
+  const badPlatform = await putItem(env, baseItem({ platform: "twitter" }));
+  assert.equal(badPlatform.status, 400);
+  const badQueue = await putItem(env, baseItem({ queue: "dm" }));
+  assert.equal(badQueue.status, 400);
+});
+
+test("done marks an item done, writes an event, and counts toward done_today", async () => {
+  const env = makeEnv();
+  await putItem(env, baseItem());
+
+  const done = await worker.fetch(
+    req("POST", "/v1/items/a1/done", { token: APP, body: { link: "https://reddit.com/x" } }),
+    env
+  );
+  assert.equal(done.status, 200);
+  const item = await done.json();
+  assert.equal(item.status, "done");
+  assert.equal(item.link, "https://reddit.com/x");
+  assert.equal(env.DB.tables.events.length, 1);
+  assert.equal(env.DB.tables.events[0].kind, "done");
+
+  const queues = await worker.fetch(req("GET", "/v1/queues", { token: APP }), env);
+  const q = (await queues.json()).platforms.reddit.post;
+  assert.equal(q.done_today, 1);
+  assert.equal(q.open.length, 0);
+});
+
+test("done with no body keeps any existing link", async () => {
+  const env = makeEnv();
+  await putItem(env, baseItem({ link: "https://old" }));
+  const done = await worker.fetch(req("POST", "/v1/items/a1/done", { token: APP }), env);
+  assert.equal(done.status, 200);
+  assert.equal((await done.json()).link, "https://old");
+});
+
+test("done on a missing item is 404", async () => {
+  const env = makeEnv();
+  const res = await worker.fetch(req("POST", "/v1/items/nope/done", { token: APP, body: {} }), env);
+  assert.equal(res.status, 404);
+});
+
+test("skip requires a valid reason and counts toward skipped_today", async () => {
+  const env = makeEnv();
+  await putItem(env, baseItem());
+
+  const badReason = await worker.fetch(
+    req("POST", "/v1/items/a1/skip", { token: APP, body: { reason: "whatever" } }),
+    env
+  );
+  assert.equal(badReason.status, 400);
+
+  const skip = await worker.fetch(
+    req("POST", "/v1/items/a1/skip", { token: APP, body: { reason: "bad", note: "not his voice" } }),
+    env
+  );
+  assert.equal(skip.status, 200);
+  const item = await skip.json();
+  assert.equal(item.status, "skipped");
+  assert.equal(item.skip_reason, "bad");
+  assert.equal(item.skip_note, "not his voice");
+
+  const queues = await worker.fetch(req("GET", "/v1/queues", { token: APP }), env);
+  assert.equal((await queues.json()).platforms.reddit.post.skipped_today, 1);
+});
+
+test("link route adds or fixes a link and writes an event", async () => {
+  const env = makeEnv();
+  await putItem(env, baseItem());
+  await worker.fetch(req("POST", "/v1/items/a1/done", { token: APP, body: {} }), env);
+
+  const res = await worker.fetch(
+    req("POST", "/v1/items/a1/link", { token: APP, body: { link: "https://reddit.com/fixed" } }),
+    env
+  );
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).link, "https://reddit.com/fixed");
+
+  const empty = await worker.fetch(
+    req("POST", "/v1/items/a1/link", { token: APP, body: { link: "" } }),
+    env
+  );
+  assert.equal(empty.status, 400);
+});
+
+test("PUT items never resurrects a done or skipped item back to open", async () => {
+  const env = makeEnv();
+  await putItem(env, baseItem());
+  await worker.fetch(req("POST", "/v1/items/a1/done", { token: APP, body: { link: "https://x" } }), env);
+
+  // The engine re-upserts the same item (e.g. a stale reconciliation sweep).
+  const reupsert = await putItem(env, baseItem({ title: "updated title" }));
+  assert.equal(reupsert.status, 200);
+
+  const items = await worker.fetch(req("GET", "/v1/items?status=done", { token: APP }), env);
+  const { items: rows } = await items.json();
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, "done");
+  assert.equal(rows[0].link, "https://x");
+  assert.equal(rows[0].title, "updated title");
+});
+
+test("GET /v1/items supports status, day and limit, for app and engine", async () => {
+  const env = makeEnv();
+  await putItem(env, baseItem({ id: "a1" }));
+  await putItem(env, baseItem({ id: "a2", day: "2026-10-12" }));
+  await worker.fetch(req("POST", "/v1/items/a1/done", { token: APP, body: {} }), env);
+
+  const done = await worker.fetch(req("GET", "/v1/items?status=done&limit=50", { token: APP }), env);
+  assert.equal((await done.json()).items.length, 1);
+
+  const openByEngine = await worker.fetch(req("GET", "/v1/items?status=open", { token: ENGINE }), env);
+  assert.equal((await openByEngine.json()).items.length, 1);
+
+  const byDay = await worker.fetch(req("GET", "/v1/items?day=2026-10-12", { token: ENGINE }), env);
+  assert.equal((await byDay.json()).items.length, 1);
+});
+
+test("GET /v1/items needs a valid token", async () => {
+  const env = makeEnv();
+  const res = await worker.fetch(req("GET", "/v1/items", { token: DRAFTER }), env);
+  assert.equal(res.status, 401);
+});
+
+test("events: engine reads only events after a given seq", async () => {
+  const env = makeEnv();
+  await putItem(env, baseItem());
+  await worker.fetch(req("POST", "/v1/items/a1/done", { token: APP, body: {} }), env);
+  await putItem(env, baseItem({ id: "a2" }));
+  await worker.fetch(req("POST", "/v1/items/a2/skip", { token: APP, body: { reason: "later" } }), env);
+
+  const all = await worker.fetch(req("GET", "/v1/events?after=0", { token: ENGINE }), env);
+  const allBody = await all.json();
+  assert.equal(allBody.events.length, 2);
+  const firstSeq = allBody.events[0].seq;
+
+  const after = await worker.fetch(
+    req("GET", `/v1/events?after=${firstSeq}`, { token: ENGINE }),
+    env
+  );
+  const afterBody = await after.json();
+  assert.equal(afterBody.events.length, 1);
+  assert.equal(afterBody.events[0].kind, "skip");
+  assert.equal(afterBody.last, allBody.last);
+});
+
+test("app token cannot read events", async () => {
+  const env = makeEnv();
+  const res = await worker.fetch(req("GET", "/v1/events", { token: APP }), env);
+  assert.equal(res.status, 401);
+});
+
+test("growth: engine writes, app reads, empty by default", async () => {
+  const env = makeEnv();
+  const empty = await worker.fetch(req("GET", "/v1/growth", { token: APP }), env);
+  assert.deepEqual(await empty.json(), {});
+
+  const put = await worker.fetch(
+    req("PUT", "/v1/growth", { token: ENGINE, body: { streak_days: 3, karma: { hn: [] } } }),
+    env
+  );
+  assert.equal(put.status, 200);
+
+  const get = await worker.fetch(req("GET", "/v1/growth", { token: APP }), env);
+  assert.deepEqual(await get.json(), { streak_days: 3, karma: { hn: [] } });
+});
+
+test("app token cannot write growth, engine token cannot read it", async () => {
+  const env = makeEnv();
+  const appWrite = await worker.fetch(
+    req("PUT", "/v1/growth", { token: APP, body: { ok: true } }),
+    env
+  );
+  assert.equal(appWrite.status, 401);
+
+  const engineRead = await worker.fetch(req("GET", "/v1/growth", { token: ENGINE }), env);
+  assert.equal(engineRead.status, 401);
+});
+
+test("drafted photo shares become reddit/post items", async () => {
+  const env = makeEnv();
+  const createRes = await createShare(env, { note: "took the scrambler out" });
+  const { id } = await createRes.json();
+  await worker.fetch(req("POST", "/v1/claim", { token: DRAFTER }), env);
+
+  const drafts = [
+    { sub: "Ducati", title: "morning ride", body: "", why: "his bike", rules_checked: true, rule_notes: "" },
+    { sub: "motorcycles", title: "scrambler", body: "", why: "general interest", rules_checked: false, rule_notes: "" },
+  ];
+  await worker.fetch(req("POST", `/v1/shares/${id}/drafts`, { token: DRAFTER, body: { drafts } }), env);
+
+  const queues = await worker.fetch(req("GET", "/v1/queues", { token: APP }), env);
+  const open = (await queues.json()).platforms.reddit.post.open;
+  assert.equal(open.length, 2);
+  assert.equal(open[0].id, `photo-${id}-0`);
+  assert.equal(open[0].source, "photo");
+  assert.equal(open[0].target, "Ducati");
+  assert.equal(open[1].id, `photo-${id}-1`);
 });
