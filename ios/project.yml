@@ -38,6 +38,8 @@ targets:
       path: Lurker/Info.plist
       properties:
         CFBundleDisplayName: Lurker
+        LurkerServer: "$(LURKER_SERVER)"
+        LurkerToken: "$(LURKER_TOKEN)"
         AppIdentifierPrefix: "$(AppIdentifierPrefix)"
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
@@ -68,6 +70,8 @@ targets:
       path: LurkerShare/Info.plist
       properties:
         CFBundleDisplayName: Lurker
+        LurkerServer: "$(LURKER_SERVER)"
+        LurkerToken: "$(LURKER_TOKEN)"
         AppIdentifierPrefix: "$(AppIdentifierPrefix)"
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"

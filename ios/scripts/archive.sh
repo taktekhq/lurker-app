@@ -21,7 +21,7 @@ DEST=upload; [ "${1:-}" = "--export-only" ] && DEST=export
 AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$ASC_KEY_PATH"
       -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
 
-[ -f Team.xcconfig ] || printf 'DEVELOPMENT_TEAM = %s\n' "$ASC_TEAM_ID" > Team.xcconfig
+[ -f Team.xcconfig ] || printf 'DEVELOPMENT_TEAM = %s\n#include? "Defaults.xcconfig"\n' "$ASC_TEAM_ID" > Team.xcconfig
 xcodegen generate -q
 
 xcodebuild -project Lurker.xcodeproj -scheme Lurker -configuration Release \

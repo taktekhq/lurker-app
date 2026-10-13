@@ -100,6 +100,12 @@ Open the app, tap the gear icon, and enter:
 - **Token**: the app token your worker was configured with (`APP_TOKEN` in
   `worker/README.md`).
 
+For your own copy, skip this screen entirely: put `LURKER_SERVER` and
+`LURKER_TOKEN` in a git-ignored `Defaults.xcconfig` next to `Team.xcconfig`
+(see `Team.xcconfig.example`) before `scripts/archive.sh`. The build carries
+them, and Settings only overrides them. Anyone holding that build can read
+the token out of it, so only do this for builds you keep to yourself.
+
 Or open a setup link on the phone and both are saved in one tap:
 `lurker://setup?server=<url-encoded https URL>&token=<app token>`.
 

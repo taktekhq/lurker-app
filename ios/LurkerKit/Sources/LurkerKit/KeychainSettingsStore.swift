@@ -23,13 +23,21 @@ public final class KeychainSettingsStore: SettingsStore {
         self.accessGroup = accessGroup
     }
 
+    /// What Settings saved wins; otherwise the values built into this copy of the
+    /// app (LURKER_SERVER / LURKER_TOKEN, see README), so a personal build works
+    /// the moment it opens.
     public func serverURL() -> URL? {
-        guard let value = read(account: "serverURL") else { return nil }
+        guard let value = read(account: "serverURL") ?? Self.bundled("LurkerServer") else { return nil }
         return URL(string: value)
     }
 
     public func token() -> String? {
-        read(account: "token")
+        read(account: "token") ?? Self.bundled("LurkerToken")
+    }
+
+    static func bundled(_ key: String) -> String? {
+        guard let v = Bundle.main.object(forInfoDictionaryKey: key) as? String, !v.isEmpty else { return nil }
+        return v
     }
 
     public func set(serverURL: URL?, token: String?) {

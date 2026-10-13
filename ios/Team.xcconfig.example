@@ -9,3 +9,10 @@
 // Left empty, `scripts/build.sh` still works: the generic-iOS build runs
 // with CODE_SIGNING_ALLOWED=NO, which skips signing entirely.
 DEVELOPMENT_TEAM =
+
+// Optional: build your own server and app token into your copy, so the app
+// needs no setup. Put them in Defaults.xcconfig (git-ignored), e.g.
+//   LURKER_SERVER = https:/$()/lurker.yourname.workers.dev
+//   LURKER_TOKEN = <your APP_TOKEN>
+// ("$()" keeps xcconfig from reading "//" as a comment.)
+#include? "Defaults.xcconfig"

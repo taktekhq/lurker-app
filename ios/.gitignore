@@ -2,3 +2,4 @@ Lurker.xcodeproj/
 Lurker/Info.plist
 LurkerShare/Info.plist
 LurkerKit/.build/
+Defaults.xcconfig
