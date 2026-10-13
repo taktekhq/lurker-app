@@ -1,0 +1,102 @@
+name: Lurker
+
+options:
+  bundleIdPrefix: io.taktek
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+
+configFiles:
+  Debug: Team.xcconfig
+  Release: Team.xcconfig
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+    CODE_SIGN_STYLE: Automatic
+    CURRENT_PROJECT_VERSION: "1"
+
+packages:
+  LurkerKit:
+    path: LurkerKit
+
+targets:
+  Lurker:
+    type: application
+    platform: iOS
+    sources:
+      - path: Lurker
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.taktek.lurker
+        PRODUCT_NAME: Lurker
+        CODE_SIGN_ENTITLEMENTS: Lurker/Lurker.entitlements
+    info:
+      path: Lurker/Info.plist
+      properties:
+        CFBundleDisplayName: Lurker
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    dependencies:
+      - package: LurkerKit
+      - target: LurkerShare
+        embed: true
+
+  LurkerShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: LurkerShare
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.taktek.lurker.share
+        PRODUCT_NAME: LurkerShare
+        CODE_SIGN_ENTITLEMENTS: LurkerShare/LurkerShare.entitlements
+    info:
+      path: LurkerShare/Info.plist
+      properties:
+        CFBundleDisplayName: Lurker
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).ShareViewController"
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsImageWithMaxCount: 10
+    dependencies:
+      - package: LurkerKit
+
+  LurkerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: LurkerTests
+    settings:
+      base:
+        PRODUCT_NAME: LurkerTests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: Lurker
+
+schemes:
+  Lurker:
+    build:
+      targets:
+        Lurker: all
+        LurkerShare: all
+        LurkerTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - LurkerTests
+    archive:
+      config: Release

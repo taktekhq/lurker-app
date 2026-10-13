@@ -1,0 +1,11 @@
+// Copy this file to Team.xcconfig (git-ignored) and fill in your Apple
+// Developer Team ID to build and run on a physical iPhone, and to let
+// Xcode provision the App Group and Keychain Sharing capabilities the
+// share extension needs.
+//
+// Find your team ID in Xcode: Settings > Accounts > (your Apple ID) >
+// (your team) -- or at developer.apple.com/account under Membership.
+//
+// Left empty, `scripts/build.sh` still works: the generic-iOS build runs
+// with CODE_SIGNING_ALLOWED=NO, which skips signing entirely.
+DEVELOPMENT_TEAM =
