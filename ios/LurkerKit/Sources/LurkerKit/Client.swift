@@ -9,14 +9,19 @@ enum Endpoint {
     case updateStatus(id: String, status: ShareStatus)
     case deleteShare(id: String)
     case photo(key: String)
+    case queues
+    case itemDone(id: String, link: String?)
+    case itemSkip(id: String, reason: SkipReason, note: String?)
+    case itemLink(id: String, link: String)
+    case growth
 }
 
 extension Endpoint {
     var method: String {
         switch self {
-        case .shares, .photo:
+        case .shares, .photo, .queues, .growth:
             return "GET"
-        case .createShare, .updateStatus:
+        case .createShare, .updateStatus, .itemDone, .itemSkip, .itemLink:
             return "POST"
         case .deleteShare:
             return "DELETE"
@@ -33,6 +38,16 @@ extension Endpoint {
             return "/v1/shares/\(id)"
         case .photo(let key):
             return "/v1/photos/\(key)"
+        case .queues:
+            return "/v1/queues"
+        case .itemDone(let id, _):
+            return "/v1/items/\(id)/done"
+        case .itemSkip(let id, _, _):
+            return "/v1/items/\(id)/skip"
+        case .itemLink(let id, _):
+            return "/v1/items/\(id)/link"
+        case .growth:
+            return "/v1/growth"
         }
     }
 }
@@ -83,6 +98,34 @@ public final class Client: Sendable {
         try await send(.photo(key: key))
     }
 
+    /// `GET /v1/queues` (SPEC-v2.md).
+    public func queues() async throws -> QueuesResponse {
+        let data = try await send(.queues)
+        return try JSONDecoder().decode(QueuesResponse.self, from: data)
+    }
+
+    /// `POST /v1/items/:id/done`. An empty or missing `link` asks the engine
+    /// to find it later (SPEC-v2.md).
+    public func itemDone(id: String, link: String?) async throws {
+        _ = try await send(.itemDone(id: id, link: link))
+    }
+
+    /// `POST /v1/items/:id/skip`.
+    public func itemSkip(id: String, reason: SkipReason, note: String?) async throws {
+        _ = try await send(.itemSkip(id: id, reason: reason, note: note))
+    }
+
+    /// `POST /v1/items/:id/link`: add or fix the link on a done item.
+    public func itemLink(id: String, link: String) async throws {
+        _ = try await send(.itemLink(id: id, link: link))
+    }
+
+    /// `GET /v1/growth` (SPEC-v2.md).
+    public func growth() async throws -> Growth {
+        let data = try await send(.growth)
+        return try JSONDecoder().decode(Growth.self, from: data)
+    }
+
     private func resolve(_ path: String) -> URL {
         let baseString = base.absoluteString
         let trimmedBase = baseString.hasSuffix("/") ? String(baseString.dropLast()) : baseString
@@ -103,7 +146,22 @@ public final class Client: Sendable {
         case .updateStatus(_, let status):
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONEncoder().encode(["status": status.rawValue])
-        case .shares, .deleteShare, .photo:
+        case .itemDone(_, let link):
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            var body: [String: String] = [:]
+            if let link, !link.isEmpty { body["link"] = link }
+            request.httpBody = try JSONEncoder().encode(body)
+        case .itemSkip(_, let reason, let note):
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            struct SkipBody: Encodable { let reason: String; let note: String? }
+            let trimmedNote = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+            request.httpBody = try JSONEncoder().encode(
+                SkipBody(reason: reason.rawValue, note: (trimmedNote?.isEmpty ?? true) ? nil : trimmedNote)
+            )
+        case .itemLink(_, let link):
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(["link": link])
+        case .shares, .deleteShare, .photo, .queues, .growth:
             break
         }
 
