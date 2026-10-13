@@ -1,10 +1,15 @@
 # Lurker iOS
 
-Share photos from your iPhone, get Reddit post drafts back. You post them
-yourself. SwiftUI, iOS 18.0+, iPhone only, portrait. Bundle id
-`io.taktek.lurker`, share extension `io.taktek.lurker.share`, shared keychain
-group `<team prefix>io.taktek.lurker.shared`. See the repo's [SPEC.md](../SPEC.md) for the full
-API contract this app talks to.
+A post queue and a comment queue for Reddit and Hacker News, filled by an
+engine that reads your notes and live threads. You post everything
+yourself; the app only ever shows suggestions and marks them done or
+skipped. It also still takes photos from your iPhone's share sheet and
+turns them into Reddit post drafts, which show up in the same post queue.
+SwiftUI, iOS 18.0+, iPhone only, portrait. Bundle id `io.taktek.lurker`,
+share extension `io.taktek.lurker.share`, shared keychain group
+`<team prefix>io.taktek.lurker.shared`. See the repo's
+[SPEC.md](../SPEC.md) and [SPEC-v2.md](../SPEC-v2.md) for the full API
+contract this app talks to.
 
 Nothing in this app is specific to one person or one server: there is no
 built-in URL or token. You set your own worker's address and your own token
@@ -21,13 +26,16 @@ ios/
   Team.xcconfig.example     committed template -- copy to Team.xcconfig
   Lurker/
     LurkerApp.swift          app entry point: creates the one AppState, passes it via .environment
-    AppState.swift           share list, polling every 5 s while anything is new/drafting, Client building
+    AppState.swift           queues and growth, refreshing every 60 s while open, Client building
     Views/
-      SharesListView.swift    root list: pull to refresh, Settings button, empty state
-      ShareRowView.swift      one share's card: photos, note, status, its drafts, action buttons
-      DraftCardView.swift     one draft: sub, title, body, why, rule notes, copy buttons
-      RemotePhotoView.swift   loads a share's photo through PhotoLoader (needs the bearer token)
-      SettingsView.swift      server URL, token, Test button
+      QueueTabView.swift       root: Reddit/HN tabs, profile button, polling start/stop
+      QueueListView.swift      one tab: Post queue and Comment queue sections, each with done_today/target
+      ItemCardView.swift       one item: title, target, why, draft text, source label, action buttons
+      DoneSheetView.swift      Done sheet: optional link field, Save
+      SkipSheetView.swift      Skip sheet: It's bad / Not now, optional note, Skip
+      GrowthView.swift         profile screen: Swift Charts (karma, done per day), 90/10 split, best, streak, gear
+      RemotePhotoView.swift    loads a photo item's thumbnail through PhotoLoader (needs the bearer token)
+      SettingsView.swift       server URL, token, Test button -- opened from the profile screen's gear
     Lurker.entitlements       Keychain Sharing
   LurkerShare/                the share extension target
     ShareViewController.swift  NSExtensionPrincipalClass: hosts ShareComposerView via UIHostingController
@@ -38,8 +46,10 @@ ios/
   LurkerTests/                placeholder app-level test target
   LurkerKit/                  local Swift package -- all testable logic lives here
     Sources/LurkerKit/
-      Models.swift             Share, Draft, ShareStatus -- the JSON shapes from SPEC.md
-      Client.swift              the API client (shares, createShare, updateStatus, deleteShare, photo)
+      Models.swift             Share, Draft, ShareStatus (SPEC.md) plus QueueItem, Queue, QueuesResponse,
+                                Growth and its nested types (SPEC-v2.md)
+      Client.swift              the API client: shares, createShare, updateStatus, deleteShare, photo
+                                (SPEC.md), queues, itemDone, itemSkip, itemLink, growth (SPEC-v2.md)
       Transport.swift           URLSessionTransport, and the protocol tests fake
       APIError.swift            decodes a non-2xx response
       Multipart.swift           builds the multipart/form-data body for POST /v1/shares
@@ -94,7 +104,7 @@ nothing has to be registered by hand.
 
 ## Pointing the app at your own worker
 
-Open the app, tap the gear icon, and enter:
+Open the app, tap the profile icon top right, then the gear, and enter:
 
 - **Server**: your deployed worker's URL, e.g. `https://lurker.yourname.workers.dev`.
 - **Token**: the app token your worker was configured with (`APP_TOKEN` in
