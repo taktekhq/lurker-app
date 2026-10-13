@@ -12,6 +12,7 @@ struct ItemCardView: View {
     @State private var showDone = false
     @State private var showSkip = false
     @State private var justCopied = false
+    @State private var openedWithCopy = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -69,13 +70,25 @@ struct ItemCardView: View {
     }
 
     private var actions: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if openedWithCopy {
+                Label(item.queue == .comment ? "Reply copied. Paste it in the reply box." : "Text copied, in case a field comes up empty.",
+                      systemImage: "doc.on.clipboard")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            buttons
+        }
+    }
+
+    private var buttons: some View {
         HStack(spacing: 8) {
             Button {
                 openLink()
             } label: {
                 Label("Open", systemImage: "safari")
             }
-            .disabled(openTarget == nil)
+            .disabled(openPlan == nil)
 
             Button {
                 UIPasteboard.general.string = item.draftText
@@ -108,31 +121,21 @@ struct ItemCardView: View {
         .labelStyle(.titleOnly)
     }
 
-    /// `url` is the thread to answer or the submit page (SPEC-v2.md); when
-    /// the engine hasn't filled it in, fall back to a sensible default so
-    /// Open still goes somewhere useful.
-    private var openTarget: URL? {
-        if let url = item.url, let parsed = URL(string: url) {
-            return parsed
-        }
-        return fallbackSubmitURL
-    }
-
-    private var fallbackSubmitURL: URL? {
-        switch item.platform {
-        case .reddit:
-            if let target = item.target, !target.isEmpty {
-                return URL(string: "https://www.reddit.com/r/\(target)/submit")
-            }
-            return URL(string: "https://www.reddit.com")
-        case .hn:
-            return URL(string: "https://news.ycombinator.com/submit")
-        }
-    }
+    /// Open fills in what the site allows and puts the rest on the clipboard
+    /// (see OpenPlan in LurkerKit).
+    private var openPlan: OpenPlan? { OpenPlan.make(for: item) }
 
     private func openLink() {
-        guard let url = openTarget else { return }
-        UIApplication.shared.open(url)
+        guard let plan = openPlan else { return }
+        if let text = plan.clipboard {
+            UIPasteboard.general.string = text
+            openedWithCopy = true
+            Task {
+                try? await Task.sleep(for: .seconds(4))
+                openedWithCopy = false
+            }
+        }
+        UIApplication.shared.open(plan.url)
     }
 
     private func sourceLabel(_ source: String) -> String {

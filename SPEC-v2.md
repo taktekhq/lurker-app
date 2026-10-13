@@ -24,7 +24,7 @@ Tables:
 
 ```sql
 items(id TEXT PRIMARY KEY, platform TEXT, queue TEXT, status TEXT,  -- open | done | skipped | expired
-      title TEXT, body TEXT, url TEXT,   -- url: the thread to answer, or the submit page
+      title TEXT, body TEXT, url TEXT,   -- comment: the thread to answer; post: the outside link it shares, if any (the app builds the submit page)
       target TEXT,                        -- reddit: subreddit; hn: null
       why TEXT, source TEXT,              -- kbase | work | link | thread | photo
       photos TEXT,                        -- JSON array of R2 keys, photo items only
@@ -77,7 +77,7 @@ Material for post ideas: your notes (a local checkout of a private wiki, recent 
 ## iOS app
 
 - Two tabs: **Reddit** and **HN**. Each tab is a list with two sections: **Post queue** and **Comment queue**, each showing `done_today / target` in its header.
-- Item card: title, target (r/sub), why, the draft text, source label. Buttons: **Open** (thread or submit page, in Safari), **Copy** (draft), **Done**, **Skip**.
+- Item card: title, target (r/sub), why, the draft text, source label. Buttons: **Open**, **Copy** (draft), **Done**, **Skip**. Open fills what the site allows: HN posts open `submitlink?t=<title>&u=<link>`, Reddit posts open `/r/<sub>/submit?title=&text=` (or `&url=`), comments open the thread; the text goes on the clipboard first, since no site fills a reply box from a URL.
 - **Done** sheet: optional link field ("Leave it empty and Lurker will find it"), Save.
 - **Skip** sheet: two choices, "It's bad" and "Not now", optional note, Skip.
 - Pull to refresh; refresh every 60 s while the app is open and right after any action.

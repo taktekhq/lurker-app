@@ -77,12 +77,20 @@ struct QueueModelsTests {
         )
         #expect(withTitle.draftText == "a title")
 
-        let withBoth = QueueItem(
+        let post = QueueItem(
+            id: "a", platform: .hn, queue: .post, status: .open,
+            title: "a title", body: "some text", url: nil, target: nil, why: nil, source: nil,
+            photos: [], day: nil, created: 0, updated: 0, link: nil, skipReason: nil, skipNote: nil
+        )
+        #expect(post.draftText == "a title\n\nsome text")
+
+        // a comment's title is the thread's, not part of the reply
+        let comment = QueueItem(
             id: "a", platform: .hn, queue: .comment, status: .open,
             title: "a title", body: "a comment", url: nil, target: nil, why: nil, source: nil,
             photos: [], day: nil, created: 0, updated: 0, link: nil, skipReason: nil, skipNote: nil
         )
-        #expect(withBoth.draftText == "a title\n\na comment")
+        #expect(comment.draftText == "a comment")
     }
 
     @Test("Queue decodes done_today, skipped_today and target")

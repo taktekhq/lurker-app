@@ -168,11 +168,11 @@ public struct QueueItem: Codable, Sendable, Equatable, Identifiable {
         case skipNote = "skip_note"
     }
 
-    /// The text worth copying to the clipboard before posting: title and
-    /// body where each is present, title alone for most posts, body alone
-    /// for most comments.
+    /// What to paste. A post copies its title and body. A comment's title is the thread's title, not part of the
+    /// reply, so a comment copies only its body.
     public var draftText: String {
-        [title, body]
+        if queue == .comment { return body ?? "" }
+        return [title, body]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
             .joined(separator: "\n\n")
