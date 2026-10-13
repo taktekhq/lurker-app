@@ -13,6 +13,11 @@ struct LurkerApp: App {
         WindowGroup {
             SharesListView()
                 .environment(appState)
+                .onOpenURL { url in
+                    guard let link = SetupLink.parse(url) else { return }
+                    appState.settings.set(serverURL: link.server, token: link.token)
+                    Task { await appState.refresh() }
+                }
         }
     }
 }

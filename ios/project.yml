@@ -45,6 +45,10 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        CFBundleURLTypes:
+          - CFBundleURLName: io.taktek.lurker
+            CFBundleURLSchemes:
+              - lurker
     dependencies:
       - package: LurkerKit
       - target: LurkerShare

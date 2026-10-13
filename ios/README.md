@@ -100,6 +100,9 @@ Open the app, tap the gear icon, and enter:
 - **Token**: the app token your worker was configured with (`APP_TOKEN` in
   `worker/README.md`).
 
+Or open a setup link on the phone and both are saved in one tap:
+`lurker://setup?server=<url-encoded https URL>&token=<app token>`.
+
 Tap **Test** to confirm the app can reach your worker (it calls
 `GET /v1/shares`) before saving. Both values are saved to the Keychain, in
 a keychain group both targets share (`<team prefix>io.taktek.lurker.shared`;
