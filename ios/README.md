@@ -2,8 +2,8 @@
 
 Share photos from your iPhone, get Reddit post drafts back. You post them
 yourself. SwiftUI, iOS 18.0+, iPhone only, portrait. Bundle id
-`io.taktek.lurker`, share extension `io.taktek.lurker.share`, App Group
-`group.io.taktek.lurker`. See the repo's [SPEC.md](../SPEC.md) for the full
+`io.taktek.lurker`, share extension `io.taktek.lurker.share`, shared keychain
+group `<team prefix>io.taktek.lurker.shared`. See the repo's [SPEC.md](../SPEC.md) for the full
 API contract this app talks to.
 
 Nothing in this app is specific to one person or one server: there is no
@@ -28,13 +28,13 @@ ios/
       DraftCardView.swift     one draft: sub, title, body, why, rule notes, copy buttons
       RemotePhotoView.swift   loads a share's photo through PhotoLoader (needs the bearer token)
       SettingsView.swift      server URL, token, Test button
-    Lurker.entitlements       App Group + Keychain Sharing
+    Lurker.entitlements       Keychain Sharing
   LurkerShare/                the share extension target
     ShareViewController.swift  NSExtensionPrincipalClass: hosts ShareComposerView via UIHostingController
     ShareComposer.swift        loads shared images, resizes them, sends, tracks state
     Views/
       ShareComposerView.swift  thumbnails, note field, Send, progress, sent/error states
-    LurkerShare.entitlements   same App Group + Keychain Sharing as the app
+    LurkerShare.entitlements   same Keychain Sharing group as the app
   LurkerTests/                placeholder app-level test target
   LurkerKit/                  local Swift package -- all testable logic lives here
     Sources/LurkerKit/
@@ -88,8 +88,9 @@ xcodebuild -project Lurker.xcodeproj -scheme Lurker \
 
 To run on your own iPhone or in a simulator, fill in your Team ID in
 `Team.xcconfig` and open `Lurker.xcodeproj` in Xcode. The first build will
-ask you to enable the App Group and Keychain Sharing capabilities for your
-own team; Xcode's "Automatically manage signing" does this for you.
+ask you to enable Keychain Sharing for your own team; Xcode's
+"Automatically manage signing" does this for you. There is no App Group, so
+nothing has to be registered by hand.
 
 ## Pointing the app at your own worker
 
@@ -101,13 +102,13 @@ Open the app, tap the gear icon, and enter:
 
 Tap **Test** to confirm the app can reach your worker (it calls
 `GET /v1/shares`) before saving. Both values are saved to the Keychain, in
-the `group.io.taktek.lurker` App Group's shared keychain, so the share
-extension can read them without the app needing to be running.
+a keychain group both targets share (`<team prefix>io.taktek.lurker.shared`;
+the prefix is read at run time from the `AppIdentifierPrefix` Info.plist key),
+so the share extension can read them without the app needing to be running.
 
 If you fork this app under your own bundle id, change `PRODUCT_BUNDLE_IDENTIFIER`
-and the App Group string (`group.io.taktek.lurker`, in both `.entitlements`
-files and in `KeychainSettingsStore.defaultAccessGroup`) to match your own
-App Group, registered in your own Apple Developer account.
+and the keychain group suffix (`io.taktek.lurker.shared`, in both
+`.entitlements` files and in `KeychainSettingsStore.defaultAccessGroup`).
 
 ## Sharing photos
 
@@ -144,9 +145,9 @@ xcrun simctl shutdown all
 `scripts/archive.sh` archives the app (Release config) and uploads it to App
 Store Connect with `xcodebuild -exportArchive -destination upload`, signed
 with an App Store Connect API key (no Apple ID needed in Xcode, no GitHub
-Actions, no simulator). The App Store Connect app record, the bundle id, and
-the `group.io.taktek.lurker` App Group must already exist (Apple's API can't
-create them).
+Actions, no simulator). The App Store Connect app record must already exist
+(Apple's API can't create one) and both bundle ids must be registered (the
+API can: `POST /v1/bundleIds`).
 
 ```
 ASC_KEY_ID=... ASC_ISSUER_ID=... ASC_TEAM_ID=... \
@@ -162,7 +163,7 @@ inline by the script into a temp directory; it is not a committed file.
 ## Needs a person
 
 - **An Apple Developer Team ID**, to build and run on a real device, and to
-  register the bundle ids and the `group.io.taktek.lurker` App Group.
+  register the bundle ids.
 - **An App Store Connect app record**, before `scripts/archive.sh` can
   upload a build. This app has not been submitted anywhere yet.
 - **An app icon**, for App Store submission; the project builds and runs

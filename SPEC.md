@@ -68,7 +68,7 @@ Gates before posting drafts back, any failure drops that draft (all dropped mean
 
 ## iOS app (`ios/`)
 
-SwiftUI, iOS 18, xcodegen `project.yml`. Bundle `io.taktek.lurker`, app group `group.io.taktek.lurker`. Server URL and token live in the shared keychain group, set in Settings.
+SwiftUI, iOS 18, xcodegen `project.yml`. Bundle `io.taktek.lurker`, no app group. Server URL and token live in a keychain group both targets share (`<team prefix>io.taktek.lurker.shared`), set in Settings.
 
 - **Share extension**: accepts 1 to 10 images. Thumbnails, a note field, Send. Resizes to 1600 px on the long edge, JPEG 0.8 (re-encoding drops EXIF, GPS included). Shows sent or the error.
 - **App**: list of shares, newest first, pull to refresh, refreshes every 5 s while any share is `new` or `drafting`. Each share shows its photos, note, status and draft cards: sub, title, body, why, rule notes. Buttons: Copy title, Copy body, Posted, Skip, Redo. Draft only: it never opens Reddit or posts.
