@@ -12,7 +12,7 @@ iPhone app ──> Worker (items, events, growth) <──> engine (any box; read
 
 - Queues: `(platform, queue)` for platform `reddit | hn`, queue `post | comment`. Four queues.
 - A day runs midnight to midnight in the engine's time zone (config).
-- Each queue holds **5 open items** while fewer than 5 of that queue's items are `done` today. Once 5 are done, it holds **1** at a time.
+- A **post** queue holds **3 open items** while fewer than 3 posts are `done` today, then none until tomorrow. A **comment** queue holds **7** while fewer than 7 are done, then **1** at a time. (14 Oct 2026: more commenting, fewer posts; it was 5 and 5. The Worker's targets can be overridden with a `QUEUE_TARGETS` JSON var.)
 - `done` and `skipped` items leave the queue. The engine refills gaps **within a few minutes of an action** (it polls events every minute; refill is debounced 2 minutes after the last action) and runs an **hourly sweep** that also expires comment items whose thread got too old and refills those.
 - Skips carry a reason: `bad` (the suggestion was bad: the engine learns from these) or `later` (fine, just not now: the engine may offer it again on a later day if it is still fresh). Optional free-text note.
 - Done carries an optional `link` to the post or comment. If it is missing, the engine looks for it (HN user items, Reddit user comments and posts) and fills it in.
@@ -36,7 +36,7 @@ kv(k TEXT PRIMARY KEY, v TEXT, updated INTEGER)  -- growth JSON lives at k = "gr
 ```
 
 App token:
-- `GET /v1/queues`: `{"day": "2026-10-13", "platforms": {"reddit": {"post": Queue, "comment": Queue}, "hn": {...}}}`. Queue = `{"open": [Item], "done_today": 3, "skipped_today": 1, "target": 5}`. Open items oldest first.
+- `GET /v1/queues`: `{"day": "2026-10-13", "platforms": {"reddit": {"post": Queue, "comment": Queue}, "hn": {...}}}`. Queue = `{"open": [Item], "done_today": 3, "skipped_today": 1, "target": 7}`. Open items oldest first.
 - `POST /v1/items/:id/done`: `{"link": "https://..."}` or `{}`. Sets `done`, writes an event.
 - `POST /v1/items/:id/skip`: `{"reason": "bad" | "later", "note": "..."}`. Sets `skipped`, writes an event.
 - `POST /v1/items/:id/link`: `{"link": "..."}` to add or fix a link on a done item.

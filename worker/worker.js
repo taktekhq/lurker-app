@@ -20,7 +20,18 @@ const STATUSES = new Set(["new", "drafting", "drafted", "failed", "posted", "ski
 
 const PLATFORMS = ["reddit", "hn"];
 const QUEUES = ["post", "comment"];
-const QUEUE_TARGET = 5;
+// Daily target per queue kind, shown as done_today / target in the app.
+// Override with a QUEUE_TARGETS var holding JSON, e.g. {"post":3,"comment":7}.
+const DEFAULT_QUEUE_TARGETS = { post: 3, comment: 7 };
+
+function queueTargets(env) {
+  try {
+    const t = env.QUEUE_TARGETS ? JSON.parse(env.QUEUE_TARGETS) : {};
+    return { ...DEFAULT_QUEUE_TARGETS, ...t };
+  } catch {
+    return DEFAULT_QUEUE_TARGETS;
+  }
+}
 const MAX_EVENTS_RETURNED = 500;
 const MAX_ITEMS_RETURNED = 200;
 const DEFAULT_ITEMS_LIMIT = 50;
@@ -595,6 +606,7 @@ async function handleGetRules(request, env) {
 
 async function handleGetQueues(request, env) {
   const day = await dbCurrentDay(env);
+  const targets = queueTargets(env);
   const platforms = {};
   for (const platform of PLATFORMS) {
     platforms[platform] = {};
@@ -606,7 +618,7 @@ async function handleGetQueues(request, env) {
         open: open.map(rowToItem),
         done_today: doneToday,
         skipped_today: skippedToday,
-        target: QUEUE_TARGET,
+        target: targets[queue],
       };
     }
   }

@@ -389,7 +389,7 @@ test("queues starts empty for every platform and queue", async () => {
       assert.deepEqual(q.open, []);
       assert.equal(q.done_today, 0);
       assert.equal(q.skipped_today, 0);
-      assert.equal(q.target, 5);
+      assert.equal(q.target, queue === "post" ? 3 : 7);
     }
   }
 });
